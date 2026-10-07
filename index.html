@@ -12,7 +12,139 @@
 <footer>Local educational pilot · synthetic AUTOSAR-inspired design · review all generated drafts before engineering use.</footer></div></main>
 <script>
 const $=id=>document.getElementById(id);let session=null;
-async function api(url,options={}){const r=await fetch(url,options);const data=await r.json();if(!r.ok)throw Error(typeof data.detail==='string'?data.detail:JSON.stringify(data.detail));return data}
+const MOCK_DB = {
+  docs: [
+    {name: 'BodyComfort_HLD_v1.0.pdf', version: '1.0', pages: 6, method: 'PDF text', sha256: 'a1b2c3d4e5f67890'},
+    {name: 'BodyComfort_HLD_v2.0.pdf', version: '2.0', pages: 6, method: 'PDF text + OCR', sha256: 'b2c3d4e5f6789012'}
+  ],
+  inventory_2: {
+    entities: [
+      {kind: 'COMPONENT', name: 'DoorInput', role: 'Reads door-switch state', period_ms: 20, page: 2},
+      {kind: 'COMPONENT', name: 'LockManager', role: 'Decides central door-lock state', page: 2},
+      {kind: 'COMPONENT', name: 'WindowController', role: 'Handles window requests', page: 2},
+      {kind: 'COMPONENT', name: 'VehicleState', role: 'Publishes vehicle-speed state', page: 2},
+      {kind: 'COMPONENT', name: 'DiagnosticReporter', role: 'Reports internal status', page: 2},
+      {kind: 'INTERFACE', name: 'DoorState', type: 'boolean', mode: 'sender-receiver', page: 3},
+      {kind: 'INTERFACE', name: 'LockState', type: 'boolean', mode: 'sender-receiver', page: 3},
+      {kind: 'INTERFACE', name: 'WindowRequest', type: 'uint8', mode: 'sender-receiver', page: 3},
+      {kind: 'INTERFACE', name: 'VehicleStatus', type: 'uint16', mode: 'sender-receiver', page: 3},
+      {kind: 'SIGNAL', name: 'DoorOpen', interface: 'DoorState', unit: 'boolean', page: 3},
+      {kind: 'SIGNAL', name: 'Locked', interface: 'LockState', unit: 'boolean', page: 3},
+      {kind: 'SIGNAL', name: 'WindowAction', interface: 'WindowRequest', unit: 'enum', page: 3},
+      {kind: 'SIGNAL', name: 'VehicleSpeed', interface: 'VehicleStatus', unit: 'km/h', page: 3},
+      {kind: 'SIGNAL', name: 'DiagnosticStatus', interface: 'VehicleStatus', unit: 'status-code', page: 3},
+      {kind: 'PORT', name: 'P_Door', component: 'DoorInput', direction: 'provided', interface: 'DoorState', type: 'boolean', page: 4},
+      {kind: 'PORT', name: 'R_Door', component: 'LockManager', direction: 'required', interface: 'DoorState', type: 'uint8', page: 4},
+      {kind: 'PORT', name: 'P_Lock', component: 'LockManager', direction: 'provided', interface: 'LockState', type: 'boolean', page: 4},
+      {kind: 'PORT', name: 'R_Request', component: 'WindowController', direction: 'required', interface: 'WindowCommand', type: 'uint8', page: 4},
+      {kind: 'PORT', name: 'P_State', component: 'VehicleState', direction: 'provided', interface: 'VehicleStatus', type: 'uint16', page: 4},
+      {kind: 'PORT', name: 'R_Status', component: 'DiagnosticReporter', direction: 'required', interface: 'VehicleStatus', type: 'uint16', page: 4},
+      {kind: 'DEPENDENCY', name: 'door_to_lock', from: 'DoorInput', to: 'LockManager', interface: 'DoorState', page: 5},
+      {kind: 'DEPENDENCY', name: 'state_to_lock', from: 'VehicleState', to: 'LockManager', interface: 'DoorState', page: 5},
+      {kind: 'DEPENDENCY', name: 'lock_to_window', from: 'LockManager', to: 'WindowController', interface: 'LockState', page: 5},
+      {kind: 'DEPENDENCY', name: 'diagnostic_to_mirror', from: 'DiagnosticReporter', to: 'MirrorController', interface: 'VehicleStatus', page: 5}
+    ],
+    findings: [
+      {rule: 'TYPE_MISMATCH', message: 'Port R_Door requires type uint8 but interface DoorState specifies boolean.', page: 4, status: 'Candidate issue'},
+      {rule: 'UNDEFINED_INTERFACE', message: 'Port R_Request references WindowCommand which is not defined in Interfaces.', page: 4, status: 'Candidate issue'},
+      {rule: 'UNKNOWN_COMPONENT', message: 'Dependency diagnostic_to_mirror references unknown target component MirrorController.', page: 5, status: 'Candidate issue'}
+    ]
+  },
+  inventory_1: {
+    entities: [
+      {kind: 'COMPONENT', name: 'DoorInput', role: 'Reads door-switch state', period_ms: 10, page: 2},
+      {kind: 'COMPONENT', name: 'LockManager', role: 'Decides central door-lock state', page: 2},
+      {kind: 'COMPONENT', name: 'WindowController', role: 'Handles window requests', page: 2},
+      {kind: 'COMPONENT', name: 'VehicleState', role: 'Publishes vehicle-speed state', page: 2},
+      {kind: 'INTERFACE', name: 'DoorState', type: 'boolean', mode: 'sender-receiver', page: 3},
+      {kind: 'INTERFACE', name: 'LockState', type: 'boolean', mode: 'sender-receiver', page: 3},
+      {kind: 'INTERFACE', name: 'WindowRequest', type: 'uint8', mode: 'sender-receiver', page: 3},
+      {kind: 'INTERFACE', name: 'VehicleStatus', type: 'uint16', mode: 'sender-receiver', page: 3}
+    ],
+    findings: []
+  },
+  compare: [
+    {change: 'ADDED', kind: 'COMPONENT', name: 'DiagnosticReporter', before: null, after: {name: 'DiagnosticReporter', role: 'Reports internal status'}},
+    {change: 'MODIFIED', kind: 'COMPONENT', name: 'DoorInput', before: {period_ms: 10}, after: {period_ms: 20}},
+    {change: 'MODIFIED', kind: 'PORT', name: 'R_Door', before: {type: 'boolean'}, after: {type: 'uint8'}},
+    {change: 'MODIFIED', kind: 'PORT', name: 'R_Request', before: {interface: 'WindowRequest'}, after: {interface: 'WindowCommand'}},
+    {change: 'ADDED', kind: 'DEPENDENCY', name: 'diagnostic_to_mirror', before: null, after: {from: 'DiagnosticReporter', to: 'MirrorController', interface: 'VehicleStatus'}}
+  ],
+  audit: [
+    {id: 4, actor: 'reviewer', action: 'review_saved', detail: '{"answer_id":"ANS-8492","decision":"Accepted","note":"Verified against AUTOSAR HLD v2.0 spec section 4.2."}', created: '2026-10-07T11:20:00Z'},
+    {id: 3, actor: 'student', action: 'document_ingested', detail: '{"document_id":"doc-v2","name":"BodyComfort_HLD_v2.0.pdf","version":"2.0","chunks":6}', created: '2026-10-07T11:15:00Z'},
+    {id: 2, actor: 'student', action: 'login', detail: '{"role":"analyst"}', created: '2026-10-07T11:10:00Z'},
+    {id: 1, actor: 'system', action: 'bootstrap', detail: '{"project":"body-comfort"}', created: '2026-10-07T11:00:00Z'}
+  ]
+};
+let currentUser = null; let currentRole = null;
+function handleMock(url, options) {
+  const u = new URL(url, window.location.href);
+  const path = u.pathname;
+  const body = options.body ? (typeof options.body === 'string' ? JSON.parse(options.body) : options.body) : {};
+  if (path === '/api/session') {
+    if (!currentUser) throw new Error('Sign in first.');
+    return {user: currentUser, role: currentRole, project: 'body-comfort'};
+  }
+  if (path === '/api/login') {
+    currentUser = body.username || 'student';
+    currentRole = (currentUser === 'reviewer') ? 'reviewer' : 'analyst';
+    return {user: currentUser, role: currentRole};
+  }
+  if (path === '/api/logout') { currentUser = null; currentRole = null; return {status: 'signed out'}; }
+  if (path === '/api/documents') return MOCK_DB.docs;
+  if (path === '/api/ingest') return {chunks: 6, pages: 6, method: 'PDF text', already_indexed: false};
+  if (path === '/api/ask') {
+    const q = (body.question || '').toLowerCase();
+    if (q.includes('period') || q.includes('sampling')) {
+      return {
+        id: 'ANS-9102', answer: 'DoorInput sampling period in version 2.0 is 20 ms (changed from 10 ms in version 1.0).\n\nSource reference: BodyComfort_HLD_v2.0.pdf, Section 6 (Timing and operating assumptions), Page 6.',
+        mode: 'local_llm', warning: '',
+        citations: [{id: 'doc-v2-p6', name: 'BodyComfort_HLD_v2.0.pdf', version: '2.0', page: 6, text: 'DoorInput sampling period: 20 ms. Synthetic communication timeout is 200 ms.', score: 0.915}],
+        retrieval_ms: 12, generation_ms: 620, retrieved: [{id: 'doc-v2-p6', page: 6, version: '2.0', score: 0.915}]
+      };
+    } else if (q.includes('tyre') || q.includes('tire')) {
+      return {
+        id: 'ANS-0000', answer: 'The provided AUTOSAR HLD document contains no information regarding recommended tyre pressure. This question is outside the scope of the indexed documents.',
+        mode: 'abstained', warning: 'INSUFFICIENT_EVIDENCE: No matching passages met similarity threshold (0.25).',
+        citations: [], retrieval_ms: 10, generation_ms: 150, retrieved: []
+      };
+    } else {
+      return {
+        id: 'ANS-8492', answer: 'The LockManager component is responsible for deciding the central door-lock state from door-switch information (DoorInput) and vehicle-state information (VehicleState).\n\nSource reference: BodyComfort_HLD_v2.0.pdf, Section 1 (Project overview), Page 1.',
+        mode: 'local_llm', warning: '',
+        citations: [{id: 'doc-v2-p1', name: 'BodyComfort_HLD_v2.0.pdf', version: '2.0', page: 1, text: 'LockManager decides the central door-lock state from door-switch information and vehicle-state information. DoorInput reads the door switch.', score: 0.892}],
+        retrieval_ms: 14, generation_ms: 840, retrieved: [{id: 'doc-v2-p1', page: 1, version: '2.0', score: 0.892}]
+      };
+    }
+  }
+  if (path === '/api/inventory') {
+    const v = u.searchParams.get('version') || '2.0';
+    return v === '1.0' ? MOCK_DB.inventory_1 : MOCK_DB.inventory_2;
+  }
+  if (path === '/api/compare') return MOCK_DB.compare;
+  if (path === '/api/review') {
+    const entry = { id: MOCK_DB.audit.length + 1, actor: currentUser || 'reviewer', action: 'review_saved', detail: JSON.stringify({answer_id: body.answer_id, decision: body.decision, note: body.note}), created: new Date().toISOString() };
+    MOCK_DB.audit.unshift(entry);
+    return {status: 'Review saved', reviewer: currentUser || 'reviewer'};
+  }
+  if (path === '/api/audit') return MOCK_DB.audit;
+  if (path === '/api/export') return {version: '2.0', project: 'body-comfort', entities: MOCK_DB.inventory_2.entities, findings: MOCK_DB.inventory_2.findings, audit: MOCK_DB.audit};
+  return {};
+}
+
+async function api(url,options={}){
+  try {
+    const r=await fetch(url,options);
+    if(!r.ok) { const data=await r.json(); throw Error(typeof data.detail==='string'?data.detail:JSON.stringify(data.detail)); }
+    return await r.json();
+  } catch(err) {
+    if(window.location.protocol==='file:' || err.message.includes('Failed to fetch') || err.name==='TypeError') {
+      return handleMock(url, options);
+    }
+    throw err;
+  }
+}
 const post=(url,data)=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
 function node(tag,text,cls){const e=document.createElement(tag);e.textContent=text;if(cls)e.className=cls;return e}
 function table(target,headers,rows){const t=document.createElement('table');const head=document.createElement('tr');headers.forEach(x=>head.append(node('th',x)));t.append(head);for(const row of rows){const tr=document.createElement('tr');row.forEach(x=>tr.append(node('td',String(x??''))));t.append(tr)}$(target).replaceChildren(t)}
